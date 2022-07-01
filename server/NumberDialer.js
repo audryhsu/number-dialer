@@ -1,3 +1,6 @@
+import axios from 'axios';
+import { CALL_PATH, CALL_PORT } from './constants/callApi.js';
+
 export class NumberDialer {
   constructor(NUMBERS_TO_CALL) {
     this.numbersCalled = [];
