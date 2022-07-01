@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
-// import './App.css';
 const SERVER_URL = 'http://localhost:5000';
 
 function App() {
@@ -15,32 +14,42 @@ function App() {
     initialFetch();
   }, []);
 
+  const updateNumbers = (newNumberObject) => {
+    let updatedPhoneNumbers = phoneNumbers.map((num) => {
+      if (num.index === newNumberObject.index) {
+        return newNumberObject;
+      }
+      return num;
+    });
+    console.log(updatedPhoneNumbers);
+    setPhoneNumbers(updatedPhoneNumbers);
+  };
+
   const clickCall = async () => {
     await axios.post(`${SERVER_URL}/call`);
     let eventSource = new EventSource(`${SERVER_URL}/updates`);
 
+    eventSource.addEventListener('open', () => console.log('connection open!'));
     eventSource.addEventListener('message', (event) => {
-      console.log('message: ', event.data);
+      let data = JSON.parse(event.data);
+      updateNumbers(data);
     });
-  }
-
-  // SSE setup - when receiving a new event, update the current state
+  };
 
   return (
     <main>
       <h1>Number Dialer</h1>
       <ul>
-        {phoneNumbers.map((numberObject, idx) => {
+        {phoneNumbers.map((numberObject) => {
           return (
-            <li key={idx}>
-              {numberObject.number} - {numberObject.status}
+            <li key={numberObject.index}>
+              #{numberObject.index} {numberObject.number} -{' '}
+              {numberObject.status}
             </li>
           );
         })}
       </ul>
-      <button type="button"
-        className="button"
-        onClick={clickCall}>
+      <button type="button" className="button" onClick={clickCall}>
         Call
       </button>
     </main>

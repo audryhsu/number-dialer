@@ -1,30 +1,46 @@
 import dotenv from 'dotenv/config.js';
 import express, { request, response } from 'express';
 import cors from 'cors';
-import bodyParser from 'body-parser'; // deprecated
-import pkg from 'better-sse';
 import { CALL_LIMIT, NUMBERS_TO_CALL } from './constants/callApi.js';
 import { NumberDialer } from './NumberDialer.js';
-const { createSession } = pkg;
 const app = express();
-app.use(express.json());
-app.use(cors());
-app.use(bodyParser.json());
-app.use(bodyParser.urlencoded({ extended: false }));
+
 
 const dialer = new NumberDialer(NUMBERS_TO_CALL);
-let session;
-// api sends webhook
+const client = { stream: null }; // stores response object to stream SSE
+
+app.use(express.json());
+app.use(cors());
+
+// endpoint for clients to start ws connection
+app.get('/updates', async (req, res) => {
+  const headers = {
+    'Content-Type': 'text/event-stream',
+    Connection: 'keep-alive',
+    'Cache-Control': 'no-cache',
+  };
+  res.writeHead(200, headers);
+  res.write(`data: hello from server`);
+  res.write('\n\n');
+  client.stream = res; // store response obj to be written to later
+});
+
+// receives webhooks from numDialer API and streams call status changes
 app.post('/updates', (req, res) => {
-  console.log('WEBHOOK FROM API:', req.body);
   dialer.updateCallStatus(req.body);
 
-  session.push(req.body);
+  const receivedNumber = dialer.numbersCalled.filter((num) => {
+    return num.id === req.body.id;
+  })[0];
+
+  client.stream.write(`data: ${JSON.stringify(receivedNumber)}`); // Note: string must start with "data: " 
+  client.stream.write('\n\n'); // Note: this must be a separate write from data (above)
   res.send();
 });
 
+// provides frontend with list of phone numbers to call
 app.get('/', (req, res) => {
-  // need to format this accordingly
+  // TODO: need to format this accordingly
   let formattedNumbers = dialer.numbersToCall.map((number, index) => {
     return {
       number,
@@ -36,12 +52,8 @@ app.get('/', (req, res) => {
   res.send(JSON.stringify(formattedNumbers));
 });
 
-app.get('/updates', async (req, res) => {
-  session = await createSession(req, res);
-  session.push('Hello world!');
-});
 
-// frontend clicks the call button
+// call list of numbers numbers 
 app.post('/call', (req, res) => {
   let counter = 0;
 
@@ -52,17 +64,6 @@ app.post('/call', (req, res) => {
   res.status(200).send('good job');
 });
 
-// receiving webhook response
-// updating the call_id with new status
-// if new status is completed, start the next phone number
-// initiating API post request for next call
-// relay updates to frontend (websocket?)
-// set up server event
-// put data in server event
-// set headers?
-// execute "outputSSE"
-
-// res.write('hello from server')
 app.listen(process.env.PORT, () => {
   console.log(`Express app listening on port ${process.env.PORT}`);
 });
